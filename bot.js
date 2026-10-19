@@ -1,38 +1,37 @@
 require("dotenv").config();
 
-const TelegramBot = require("node-telegram-bot-api");
+const TelegramBot = require("node-telegram-api-bot");
 const { exec } = require("child_process");
-
 
 const bot = new TelegramBot(process.env.BOT_TOKEN, {
     polling: true
 });
 
 
-console.log("🚀 Telegram Terminal Bot Started");
+console.log("🚀 Telegram Terminal Bot Online");
 
 
-// Send Alive message when bot starts
-if (process.env.ALIVE_CHAT_ID) {
+// Send Alive message
+setTimeout(() => {
 
-    bot.sendMessage(
-        process.env.ALIVE_CHAT_ID,
-        "🟢 Telegram Terminal Bot is Alive\n\n" +
-        "🖥 Server: Render\n" +
-        "✅ Status: Online"
-    )
-    .then(() => {
-        console.log("✅ Alive message sent");
-    })
-    .catch((err) => {
-        console.log("❌ Alive message failed:", err.message);
-    });
+    if (process.env.ALIVE_CHAT_ID) {
 
-}
+        bot.sendMessage(
+            process.env.ALIVE_CHAT_ID,
+            "🟢 Telegram Terminal Bot is Alive\n\n" +
+            "🖥 Server: Render\n" +
+            "✅ Status: Online"
+        )
+        .then(() => console.log("Alive message sent"))
+        .catch(err => console.log("Alive error:", err.message));
+
+    }
+
+}, 3000);
 
 
-// Receive Telegram messages
-bot.on("message", (msg) => {
+
+bot.on("message", async (msg) => {
 
     const chatId = msg.chat.id;
     const command = msg.text;
@@ -42,16 +41,13 @@ bot.on("message", (msg) => {
 
 
     console.log(
-        `[COMMAND] ${command}`
+        `📩 Command from ${chatId}: ${command}`
     );
 
 
-    bot.sendMessage(
+    await bot.sendMessage(
         chatId,
-        `⚡ Executing:\n\`\`\`\n${command}\n\`\`\``,
-        {
-            parse_mode: "Markdown"
-        }
+        `⚡ Executing:\n${command}`
     );
 
 
@@ -60,32 +56,40 @@ bot.on("message", (msg) => {
         {
             shell: "/bin/bash",
             timeout: 120000,
-            maxBuffer: 1024 * 1024 * 20
+            maxBuffer: 1024 * 1024 * 50
         },
 
-        (error, stdout, stderr) => {
+
+        async (error, stdout, stderr) => {
 
 
-            let output = "";
+            let result = "";
 
 
-            if (stdout)
-                output += stdout;
+            if (stdout) {
+                result += stdout;
+            }
 
 
-            if (stderr)
-                output += "\n\n⚠️ STDERR:\n" + stderr;
+            if (stderr) {
+                result += "\n\n⚠️ STDERR:\n" + stderr;
+            }
 
 
-            if (error)
-                output += "\n\n❌ ERROR:\n" + error.message;
+            if (error) {
+                result += "\n\n❌ ERROR:\n" + error.message;
+            }
 
 
-            if (!output)
-                output = "✅ Command completed with no output";
+            if (result.trim() === "") {
+                result = "✅ Command completed successfully";
+            }
 
 
-            sendOutput(chatId, output);
+            await sendOutput(
+                chatId,
+                result
+            );
 
         }
     );
@@ -93,49 +97,43 @@ bot.on("message", (msg) => {
 });
 
 
-// Send terminal output safely
-function sendOutput(chatId, output) {
+
+// Send long outputs
+async function sendOutput(chatId, text) {
 
     const limit = 4000;
 
 
-    while (output.length > limit) {
+    while(text.length > limit) {
 
-        bot.sendMessage(
+        await bot.sendMessage(
             chatId,
-            "```\n" +
-            output.substring(0, limit) +
-            "\n```",
-            {
-                parse_mode: "Markdown"
-            }
+            text.substring(0, limit)
         );
 
-
-        output = output.substring(limit);
+        text = text.substring(limit);
 
     }
 
 
-    bot.sendMessage(
+    await bot.sendMessage(
         chatId,
-        "```\n" +
-        output +
-        "\n```",
-        {
-            parse_mode: "Markdown"
-        }
+        text
     );
 
 }
 
 
-// Error logs
-bot.on("polling_error", (error) => {
 
-    console.log(
-        "Polling Error:",
-        error.message
-    );
+// Error monitoring
+bot.on(
+    "polling_error",
+    (error)=>{
 
-});
+        console.log(
+            "Polling Error:",
+            error.message
+        );
+
+    }
+);
