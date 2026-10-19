@@ -5,9 +5,7 @@ const { exec } = require("child_process");
 const express = require("express");
 
 
-// =========================
-// WEB DASHBOARD
-// =========================
+// ================= WEB DASHBOARD =================
 
 const app = express();
 
@@ -16,59 +14,56 @@ const PORT = process.env.PORT || 3000;
 const startTime = Date.now();
 
 
-app.get("/", (req, res)=>{
+app.get("/", (req, res) => {
+
+    const uptimeStart = startTime;
 
     res.send(`
+
 <!DOCTYPE html>
 <html>
 
 <head>
 
-<title>Telegram Terminal Bot Status</title>
+<title>Telegram Terminal Bot</title>
 
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
 
-body{
-    background:#0b0f19;
+body {
+    background:#0f172a;
     color:white;
     font-family:Arial;
     text-align:center;
     padding:40px;
 }
 
+.card {
 
-.card{
-
-background:#151b2b;
-padding:25px;
-border-radius:20px;
-max-width:500px;
-margin:auto;
-
-box-shadow:0 0 20px #000;
+    background:#1e293b;
+    max-width:500px;
+    margin:auto;
+    padding:30px;
+    border-radius:20px;
 
 }
 
-
-h1{
-color:#00ff88;
+h1 {
+    color:#22c55e;
 }
 
+.status {
 
-.status{
-
-font-size:22px;
-color:#00ff88;
+    font-size:25px;
+    color:#22c55e;
 
 }
 
+.value {
 
-.time{
-
-font-size:30px;
-font-weight:bold;
+    font-size:28px;
+    font-weight:bold;
 
 }
 
@@ -85,23 +80,19 @@ font-weight:bold;
 
 <h1>🤖 Telegram Terminal Bot</h1>
 
-
 <div class="status">
 🟢 ONLINE
 </div>
 
 
-<br>
+<h3>Uptime</h3>
 
-
-<h3>Server Uptime</h3>
-
-<div class="time" id="uptime">
+<div class="value" id="uptime">
 Loading...
 </div>
 
 
-<h3>Started At</h3>
+<h3>Started</h3>
 
 <p id="started"></p>
 
@@ -118,43 +109,49 @@ Loading...
 <script>
 
 
-const started = new Date(${startTime});
+const start = ${uptimeStart};
 
 
 document.getElementById("started").innerHTML =
-started.toString();
+new Date(start).toString();
 
 
 
 function update(){
 
 
-let now = Date.now();
+const now = Date.now();
 
 
-let diff =
-Math.floor((now-${startTime})/1000);
+const seconds =
+Math.floor((now - start) / 1000);
 
 
-let d =
-Math.floor(diff/86400);
+
+const days =
+Math.floor(seconds / 86400);
 
 
-let h =
-Math.floor(diff%86400/3600);
+const hours =
+Math.floor((seconds % 86400) / 3600);
 
 
-let m =
-Math.floor(diff%3600/60);
+const minutes =
+Math.floor((seconds % 3600) / 60);
 
 
-let s =
-diff%60;
+const secs =
+seconds % 60;
 
 
 
 document.getElementById("uptime").innerHTML =
-`${d}d ${h}h ${m}m ${s}s`;
+
+days + "d " +
+hours + "h " +
+minutes + "m " +
+secs + "s";
+
 
 
 document.getElementById("clock").innerHTML =
@@ -175,15 +172,17 @@ update();
 </body>
 
 </html>
+
 `);
 
 });
 
 
-app.listen(PORT, ()=>{
+
+app.listen(PORT,()=>{
 
 console.log(
-`🌐 Dashboard running on port ${PORT}`
+"🌐 Dashboard running on port " + PORT
 );
 
 });
@@ -192,9 +191,17 @@ console.log(
 
 
 
-// =========================
-// TELEGRAM BOT
-// =========================
+// ================= TELEGRAM BOT =================
+
+
+if(!process.env.BOT_TOKEN){
+
+console.log("BOT_TOKEN missing");
+
+process.exit(1);
+
+}
+
 
 
 const bot = new TelegramBot(
@@ -213,7 +220,9 @@ console.log(
 
 
 
+
 // Alive message
+
 
 setTimeout(()=>{
 
@@ -222,38 +231,46 @@ if(process.env.ALIVE_CHAT_ID){
 
 
 bot.sendMessage(
+
 process.env.ALIVE_CHAT_ID,
-"🟢 Telegram Terminal Bot Alive\n\n"+
-"🖥 Render Server Online\n"+
-"🌐 Dashboard Active"
+
+"🟢 Telegram Terminal Bot is Alive\n\n"+
+"🖥 Server: Render\n"+
+"🌐 Dashboard Online"
+
 );
 
 
 }
 
 
-},3000);
+},5000);
 
 
 
 
 
-// Commands
+
+// Execute commands
 
 
 bot.on("message",(msg)=>{
 
 
-const chatId =
-msg.chat.id;
+const chatId = msg.chat.id;
 
-
-const command =
-msg.text;
+const command = msg.text;
 
 
 if(!command)
 return;
+
+
+
+console.log(
+"Command:",
+command
+);
 
 
 
@@ -267,8 +284,7 @@ shell:"/bin/bash",
 
 timeout:120000,
 
-maxBuffer:
-50*1024*1024
+maxBuffer:50*1024*1024
 
 },
 
@@ -284,19 +300,16 @@ output+=stdout;
 
 
 if(stderr)
-output+=
-"\nSTDERR:\n"+stderr;
-
+output+="\n\nSTDERR:\n"+stderr;
 
 
 if(error)
-output+=
-"\nERROR:\n"+error.message;
+output+="\n\nERROR:\n"+error.message;
 
 
 
 if(!output)
-output="✅ Completed";
+output="✅ Command completed";
 
 
 
@@ -321,12 +334,15 @@ async function sendOutput(chatId,text){
 const limit=4000;
 
 
-while(text.length>limit){
+while(text.length > limit){
 
 
 await bot.sendMessage(
+
 chatId,
+
 text.substring(0,limit)
+
 );
 
 
@@ -344,3 +360,17 @@ text
 
 
 }
+
+
+
+
+bot.on(
+"polling_error",
+(err)=>{
+
+console.log(
+"Polling Error:",
+err.message
+);
+
+});
