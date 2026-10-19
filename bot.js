@@ -3,14 +3,35 @@ require("dotenv").config();
 const TelegramBot = require("node-telegram-bot-api");
 const { exec } = require("child_process");
 
+
 const bot = new TelegramBot(process.env.BOT_TOKEN, {
     polling: true
 });
 
 
-console.log("✅ Telegram Terminal Bot running on Render");
+console.log("🚀 Telegram Terminal Bot Started");
 
 
+// Send Alive message when bot starts
+if (process.env.ALIVE_CHAT_ID) {
+
+    bot.sendMessage(
+        process.env.ALIVE_CHAT_ID,
+        "🟢 Telegram Terminal Bot is Alive\n\n" +
+        "🖥 Server: Render\n" +
+        "✅ Status: Online"
+    )
+    .then(() => {
+        console.log("✅ Alive message sent");
+    })
+    .catch((err) => {
+        console.log("❌ Alive message failed:", err.message);
+    });
+
+}
+
+
+// Receive Telegram messages
 bot.on("message", (msg) => {
 
     const chatId = msg.chat.id;
@@ -20,7 +41,18 @@ bot.on("message", (msg) => {
     if (!command) return;
 
 
-    console.log("Command:", command);
+    console.log(
+        `[COMMAND] ${command}`
+    );
+
+
+    bot.sendMessage(
+        chatId,
+        `⚡ Executing:\n\`\`\`\n${command}\n\`\`\``,
+        {
+            parse_mode: "Markdown"
+        }
+    );
 
 
     exec(
@@ -34,26 +66,26 @@ bot.on("message", (msg) => {
         (error, stdout, stderr) => {
 
 
-            let result = "";
+            let output = "";
 
 
             if (stdout)
-                result += stdout;
+                output += stdout;
 
 
             if (stderr)
-                result += "\nSTDERR:\n" + stderr;
+                output += "\n\n⚠️ STDERR:\n" + stderr;
 
 
             if (error)
-                result += "\nERROR:\n" + error.message;
+                output += "\n\n❌ ERROR:\n" + error.message;
 
 
-            if (!result)
-                result = "✅ Done";
+            if (!output)
+                output = "✅ Command completed with no output";
 
 
-            sendOutput(chatId, result);
+            sendOutput(chatId, output);
 
         }
     );
@@ -61,32 +93,49 @@ bot.on("message", (msg) => {
 });
 
 
-function sendOutput(chatId, text) {
+// Send terminal output safely
+function sendOutput(chatId, output) {
 
-    const size = 4000;
+    const limit = 4000;
 
 
-    while(text.length > size){
+    while (output.length > limit) {
 
         bot.sendMessage(
             chatId,
-            "```\n"+text.substring(0,size)+"\n```",
+            "```\n" +
+            output.substring(0, limit) +
+            "\n```",
             {
-                parse_mode:"Markdown"
+                parse_mode: "Markdown"
             }
         );
 
-        text=text.substring(size);
+
+        output = output.substring(limit);
 
     }
 
 
     bot.sendMessage(
         chatId,
-        "```\n"+text+"\n```",
+        "```\n" +
+        output +
+        "\n```",
         {
-            parse_mode:"Markdown"
+            parse_mode: "Markdown"
         }
     );
 
 }
+
+
+// Error logs
+bot.on("polling_error", (error) => {
+
+    console.log(
+        "Polling Error:",
+        error.message
+    );
+
+});
