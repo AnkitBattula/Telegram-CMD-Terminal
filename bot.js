@@ -1,37 +1,67 @@
 require("dotenv").config();
 
-const TelegramBot = require("node-telegram-api-bot");
+const TelegramBot = require("node-telegram-bot-api");
 const { exec } = require("child_process");
 
+
+// Environment check
+if (!process.env.BOT_TOKEN) {
+    console.error("❌ BOT_TOKEN missing");
+    process.exit(1);
+}
+
+
 const bot = new TelegramBot(process.env.BOT_TOKEN, {
-    polling: true
+    polling: {
+        interval: 1000,
+        autoStart: true
+    }
 });
 
 
-console.log("🚀 Telegram Terminal Bot Online");
+console.log("🚀 Telegram Terminal Bot Started");
 
 
-// Send Alive message
-setTimeout(() => {
+// Alive notification
+async function sendAlive() {
 
-    if (process.env.ALIVE_CHAT_ID) {
+    if (!process.env.ALIVE_CHAT_ID) {
+        console.log("⚠️ ALIVE_CHAT_ID not set");
+        return;
+    }
 
-        bot.sendMessage(
+
+    try {
+
+        await bot.sendMessage(
             process.env.ALIVE_CHAT_ID,
             "🟢 Telegram Terminal Bot is Alive\n\n" +
             "🖥 Server: Render\n" +
             "✅ Status: Online"
-        )
-        .then(() => console.log("Alive message sent"))
-        .catch(err => console.log("Alive error:", err.message));
+        );
+
+
+        console.log("✅ Alive message sent");
+
+    } catch (err) {
+
+        console.log(
+            "Alive message error:",
+            err.message
+        );
 
     }
 
-}, 3000);
+}
+
+
+setTimeout(sendAlive, 3000);
 
 
 
+// Receive Telegram commands
 bot.on("message", async (msg) => {
+
 
     const chatId = msg.chat.id;
     const command = msg.text;
@@ -41,79 +71,114 @@ bot.on("message", async (msg) => {
 
 
     console.log(
-        `📩 Command from ${chatId}: ${command}`
+        `[${new Date().toISOString()}] CMD: ${command}`
     );
 
 
-    await bot.sendMessage(
-        chatId,
-        `⚡ Executing:\n${command}`
-    );
+
+    try {
 
 
-    exec(
-        command,
-        {
-            shell: "/bin/bash",
-            timeout: 120000,
-            maxBuffer: 1024 * 1024 * 50
-        },
+        await bot.sendMessage(
+            chatId,
+            `⚡ Executing:\n${command}`
+        );
 
 
-        async (error, stdout, stderr) => {
+
+        exec(
+            command,
+            {
+                shell: "/bin/bash",
+                timeout: 120000,
+                maxBuffer: 50 * 1024 * 1024
+            },
 
 
-            let result = "";
+            async (error, stdout, stderr) => {
 
 
-            if (stdout) {
-                result += stdout;
+                let output = "";
+
+
+
+                if (stdout) {
+                    output += stdout;
+                }
+
+
+                if (stderr) {
+                    output +=
+                    "\n\n⚠️ STDERR:\n" +
+                    stderr;
+                }
+
+
+                if (error) {
+                    output +=
+                    "\n\n❌ ERROR:\n" +
+                    error.message;
+                }
+
+
+                if (!output.trim()) {
+
+                    output =
+                    "✅ Command completed\n(No output)";
+
+                }
+
+
+
+                await sendOutput(
+                    chatId,
+                    output
+                );
+
+
             }
+        );
 
 
-            if (stderr) {
-                result += "\n\n⚠️ STDERR:\n" + stderr;
-            }
+    } catch(err) {
 
 
-            if (error) {
-                result += "\n\n❌ ERROR:\n" + error.message;
-            }
+        bot.sendMessage(
+            chatId,
+            "❌ Bot error:\n" + err.message
+        );
 
 
-            if (result.trim() === "") {
-                result = "✅ Command completed successfully";
-            }
+    }
 
-
-            await sendOutput(
-                chatId,
-                result
-            );
-
-        }
-    );
 
 });
 
 
 
-// Send long outputs
+
+// Send output safely
 async function sendOutput(chatId, text) {
+
 
     const limit = 4000;
 
 
     while(text.length > limit) {
 
+
         await bot.sendMessage(
             chatId,
             text.substring(0, limit)
         );
 
-        text = text.substring(limit);
+
+        text =
+        text.substring(limit);
+
 
     }
+
 
 
     await bot.sendMessage(
@@ -121,19 +186,43 @@ async function sendOutput(chatId, text) {
         text
     );
 
+
 }
 
 
 
-// Error monitoring
+
+// Telegram errors
 bot.on(
     "polling_error",
-    (error)=>{
+    (err)=>{
 
         console.log(
             "Polling Error:",
-            error.message
+            err.message
         );
 
+    }
+);
+
+
+
+// Shutdown handling
+process.on(
+    "SIGINT",
+    ()=>{
+        console.log("Stopping bot...");
+        bot.stopPolling();
+        process.exit();
+    }
+);
+
+
+process.on(
+    "SIGTERM",
+    ()=>{
+        console.log("Stopping bot...");
+        bot.stopPolling();
+        process.exit();
     }
 );
